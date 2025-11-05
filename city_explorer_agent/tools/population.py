@@ -25,7 +25,6 @@ def get_wikidata_population(city: str) -> Optional[Population]:
             "Accept": "application/json"
         }
         
-        print(sparql_query)
         response = requests.get(
             url, 
             params={"query": sparql_query, "format": "json"}, 
@@ -60,45 +59,17 @@ def get_wikidata_population(city: str) -> Optional[Population]:
         print(f"Wikidata SPARQL 오류: {e}")
         return None
 
-def get_restcountries_population(city: str) -> Optional[Population]:
-    """REST Countries API를 사용해 국가 인구를 가져옵니다 (도시가 수도인 경우)."""
-    try:
-        url = f"https://restcountries.com/v3.1/capital/{city}"
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data and len(data) > 0:
-                country = data[0]
-                population = country.get("population")
-                if population:
-                    return Population(
-                        value=population,
-                        year=2023,  # REST Countries 데이터는 보통 최신
-                        source="REST Countries API",
-                        source_url=f"https://restcountries.com/v3.1/capital/{city}"
-                    )
-        return None
-        
-    except Exception as e:
-        print(f"REST Countries API 오류: {e}")
-        return None
 
 @cached(lambda city: f"population:{city.lower()}", TTL_POPULATION)
 def population_tool(city: str) -> Population:
-    """도시 인구 정보를 여러 소스에서 가져옵니다."""
+    """도시 인구 정보를 Wikidata SPARQL을 통해 가져옵니다."""
     
-    # 1. Wikidata 시도
+    # Wikidata 시도
     result = get_wikidata_population(city)
     if result:
         return result
-    
-    # 2. REST Countries (수도인 경우) 시도
-    result = get_restcountries_population(city)
-    if result:
-        return result
-    
-    # 3. 모든 방법 실패시 기본값
+
+    # 실패시 기본값
     return Population(
         value=None,
         year=None,
