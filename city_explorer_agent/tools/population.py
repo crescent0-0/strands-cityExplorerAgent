@@ -29,7 +29,7 @@ def get_wikidata_population(city: str) -> Optional[Population]:
             url, 
             params={"query": sparql_query, "format": "json"}, 
             headers=headers,
-            timeout=10
+            timeout=30
         )
         
         if response.status_code == 200:
@@ -56,7 +56,7 @@ def get_wikidata_population(city: str) -> Optional[Population]:
         return None
         
     except Exception as e:
-        print(f"Wikidata SPARQL 오류: {e}")
+        print(f"Wikidata SPARQL Population 오류: {e}")
         return None
 
 

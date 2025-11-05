@@ -11,7 +11,6 @@ class Population(BaseModel):
 # 날씨
 class Weather(BaseModel):
     now: Optional[str] = None
-    next_days: List[str] = []
     source: Optional[str] = None
     source_url: Optional[str] = None
     

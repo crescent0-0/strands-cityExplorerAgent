@@ -48,7 +48,7 @@ def get_wikidata_attraction(city: str) -> List[Attraction]:
             url, 
             params={"query": sparql_query, "format": "json"}, 
             headers=headers,
-            timeout=10
+            timeout=30
         )
         
         if response.status_code == 200:
@@ -77,7 +77,7 @@ def get_wikidata_attraction(city: str) -> List[Attraction]:
         return []
         
     except Exception as e:
-        print(f"Wikidata SPARQL 오류: {e}")
+        print(f"Wikidata SPARQL 오류 Attraction: {e}")
         return []
 
 

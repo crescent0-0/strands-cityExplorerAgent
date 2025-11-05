@@ -22,20 +22,78 @@ def get_lat_lon(city: str) -> Optional[tuple[float, float]]:
 
 def get_weather_description(weather_data: dict, units: str) -> str:
     """날씨 데이터를 사람이 읽기 쉬운 형태로 변환"""
-    temp_unit = "°C" if units == "metric" else "°F"
-    speed_unit = "m/s" if units == "metric" else "mph"
-    
-    main = weather_data.get("main", {})
-    weather = weather_data.get("weather", [{}])[0]
-    wind = weather_data.get("wind", {})
-    
-    temp = main.get("temp", 0)
-    feels_like = main.get("feels_like", 0)
-    humidity = main.get("humidity", 0)
-    description = weather.get("description", "").title()
-    wind_speed = wind.get("speed", 0)
-    
-    return f"{description}, {temp:.1f}{temp_unit} (체감 {feels_like:.1f}{temp_unit}), 습도 {humidity}%, 바람 {wind_speed:.1f}{speed_unit}"
+        # 단위
+    units = (units or weather_data.get("units") or "standard").lower()
+    temp_unit = {"metric": "°C", "imperial": "°F"}.get(units, "K")
+    speed_unit = "mph" if units == "imperial" else "m/s"
+
+    # 값 뽑기 (직접 접근)
+    t = weather_data.get("temperature", {}) or {}
+    h = weather_data.get("humidity", {}) or {}
+    c = weather_data.get("cloud_cover", {}) or {}
+    p = weather_data.get("precipitation", {}) or {}
+    w = weather_data.get("wind", {}) or {}
+    wmax = (w.get("max") or {})
+
+    t_min_k  = t.get("min")
+    t_max_k  = t.get("max")
+    t_pm_k   = t.get("afternoon")
+    t_morn_k = t.get("morning")
+    t_eve_k  = t.get("evening")
+    t_night_k= t.get("night")
+
+    humidity = h.get("afternoon")
+    cloud    = c.get("afternoon")
+    precip   = p.get("total")
+    wind_spd = wmax.get("speed")
+    wind_dir = wmax.get("direction")
+
+    # 온도 변환 (입력은 Kelvin 가정)
+    def conv(k):
+        if k is None: return None
+        if units == "metric":
+            return k - 273.15
+        if units == "imperial":
+            return (k - 273.15) * 9/5 + 32
+        return k  # standard(K)
+
+    t_min  = conv(t_min_k)
+    t_max  = conv(t_max_k)
+    t_pm   = conv(t_pm_k)
+    t_morn = conv(t_morn_k)
+    t_eve  = conv(t_eve_k)
+    t_night= conv(t_night_k)
+
+    # 풍향(도 → 16방위, 필요 없으면 지워도 됨)
+    def compass(deg):
+        if deg is None: return ""
+        dirs = ["N","NNE","NE","ENE","E","ESE","SE","SSE",
+                "S","SSW","SW","WSW","W","WNW","NW","NNW"]
+        return dirs[int((deg % 360) / 22.5 + 0.5) % 16]
+
+    # 문장 만들기 (있는 값은 그대로 출력)
+    parts = []
+    if t_pm is not None:
+        parts.append(f"오후 {t_pm:.1f}{temp_unit}")
+    if t_min is not None and t_max is not None:
+        parts.append(f"(최저 {t_min:.1f}·최고 {t_max:.1f}{temp_unit})")
+    if t_morn is not None:
+        parts.append(f"아침 {t_morn:.1f}{temp_unit}")
+    if t_eve is not None:
+        parts.append(f"저녁 {t_eve:.1f}{temp_unit}")
+    if t_night is not None:
+        parts.append(f"밤 {t_night:.1f}{temp_unit}")
+    if humidity is not None:
+        parts.append(f"습도 {humidity:.0f}%")
+    if cloud is not None:
+        parts.append(f"구름 {cloud:.0f}%")
+    if precip is not None:
+        parts.append(f"강수 {precip:.1f}mm")
+    if wind_spd is not None:
+        wd = compass(wind_dir)
+        parts.append(f"바람 {wind_spd:.1f}{speed_unit}" + (f" {wd}" if wd else ""))
+
+    return ", ".join(parts) if parts else "날씨 정보를 불러올 수 없습니다."
 
 
 
@@ -86,7 +144,6 @@ def weather_tool(city: str, units: str = "metric") -> Weather:
         
         return Weather(
             now=current_weather,
-            next_days=daily_forecasts,
             source="OpenWeatherMap",
             source_url=f"https://openweathermap.org/city/{current_data.get('id', '')}"
         )
@@ -94,7 +151,6 @@ def weather_tool(city: str, units: str = "metric") -> Weather:
     except requests.exceptions.RequestException as e:
         return Weather(
             now=f"날씨 정보를 가져오는 중 네트워크 오류가 발생했습니다: {str(e)}",
-            next_days=["인터넷 연결을 확인해주세요."],
             source="Network Error",
             source_url=None
         )
@@ -102,28 +158,24 @@ def weather_tool(city: str, units: str = "metric") -> Weather:
         if "401" in str(e):
             return Weather(
                 now="잘못된 API 키입니다. WEATHER_API_KEY를 확인해주세요.",
-                next_days=["OpenWeatherMap에서 유효한 API 키를 발급받아주세요."],
                 source="Authentication Error",
                 source_url="https://openweathermap.org/api"
             )
         elif "404" in str(e):
             return Weather(
                 now=f"'{city}' 도시를 찾을 수 없습니다. 도시명을 확인해주세요.",
-                next_days=["해당 도시의 위도,경도 값이 올바른지 확인해주세요."],
                 source="City Not Found",
                 source_url=None
             )
         else:
             return Weather(
                 now=f"날씨 API 오류: {str(e)}",
-                next_days=["잠시 후 다시 시도해주세요."],
                 source="API Error",
                 source_url=None
             )
     except Exception as e:
         return Weather(
             now=f"예상치 못한 오류가 발생했습니다: {str(e)}",
-            next_days=["개발자에게 문의해주세요."],
             source="Unknown Error",
             source_url=None
         )
