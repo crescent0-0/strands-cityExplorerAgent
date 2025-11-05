@@ -1,5 +1,6 @@
 import requests
 from typing import Optional
+from strands import tool
 from city_explorer_agent.models import Population
 from city_explorer_agent.utils.cache import cached
 
@@ -60,16 +61,24 @@ def get_wikidata_population(city: str) -> Optional[Population]:
         return None
 
 
-@cached(lambda city: f"population:{city.lower()}", TTL_POPULATION)
+# @cached(lambda city: f"population:{city.lower()}", TTL_POPULATION)
+@tool(description="도시의 인구 정보를 조회합니다")
 def population_tool(city: str) -> Population:
     """도시 인구 정보를 Wikidata SPARQL을 통해 가져옵니다."""
+    
+    print(f"🔧 population_tool 실행 중... (도시: {city})")
     
     # Wikidata 시도
     result = get_wikidata_population(city)
     if result:
+        log_msg = f"✅ 인구 정보: {result.value if result.value else 'N/A'}"
+        if result.source:
+            log_msg += f" (출처: {result.source})"
+        print(log_msg)
         return result
 
     # 실패시 기본값
+    print("⚠️ 인구 정보를 찾을 수 없습니다")
     return Population(
         value=None,
         year=None,

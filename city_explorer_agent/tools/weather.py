@@ -3,6 +3,7 @@ import requests
 from typing import Optional
 from datetime import date
 from geopy.geocoders import Nominatim
+from strands import tool
 from city_explorer_agent.models import Weather
 from city_explorer_agent.utils.cache import cached
 
@@ -97,7 +98,7 @@ def get_weather_description(weather_data: dict, units: str) -> str:
 
 
 
-@cached(lambda city, units="metric": f"weather:{city.lower()}:{units}", TTL_WEATHER)
+@tool(description="도시의 날씨 정보를 조회합니다")
 def weather_tool(city: str, units: str = "metric") -> Weather:
     """
     OpenWeatherMap API를 사용하여 도시의 현재 날씨와 5일 예보를 가져옵니다.
@@ -109,6 +110,8 @@ def weather_tool(city: str, units: str = "metric") -> Weather:
     Returns:
         Weather: 현재 날씨와 예보 정보
     """
+    print(f"🔧 weather_tool 실행 중... (도시: {city}, 단위: {units})")
+    
     api_key = os.getenv("WEATHER_API_KEY")
     
     if not api_key:
@@ -141,14 +144,17 @@ def weather_tool(city: str, units: str = "metric") -> Weather:
         # 현재 날씨 정보 생성
         current_weather = get_weather_description(current_data, units)
         
-        
-        return Weather(
+        result = Weather(
             now=current_weather,
             source="OpenWeatherMap",
             source_url=f"https://openweathermap.org/city/{current_data.get('id', '')}"
         )
         
+        print(f"✅ 날씨 정보: {result.now if result.now else 'N/A'}")
+        return result
+        
     except requests.exceptions.RequestException as e:
+        print("⚠️ 날씨 정보를 가져오는 중 네트워크 오류가 발생했습니다")
         return Weather(
             now=f"날씨 정보를 가져오는 중 네트워크 오류가 발생했습니다: {str(e)}",
             source="Network Error",
@@ -156,24 +162,28 @@ def weather_tool(city: str, units: str = "metric") -> Weather:
         )
     except requests.exceptions.HTTPError as e:
         if "401" in str(e):
+            print("⚠️ 잘못된 API 키입니다")
             return Weather(
                 now="잘못된 API 키입니다. WEATHER_API_KEY를 확인해주세요.",
                 source="Authentication Error",
                 source_url="https://openweathermap.org/api"
             )
         elif "404" in str(e):
+            print(f"⚠️ '{city}' 도시를 찾을 수 없습니다")
             return Weather(
                 now=f"'{city}' 도시를 찾을 수 없습니다. 도시명을 확인해주세요.",
                 source="City Not Found",
                 source_url=None
             )
         else:
+            print("⚠️ 날씨 API 오류가 발생했습니다")
             return Weather(
                 now=f"날씨 API 오류: {str(e)}",
                 source="API Error",
                 source_url=None
             )
     except Exception as e:
+        print("⚠️ 예상치 못한 오류가 발생했습니다")
         return Weather(
             now=f"예상치 못한 오류가 발생했습니다: {str(e)}",
             source="Unknown Error",

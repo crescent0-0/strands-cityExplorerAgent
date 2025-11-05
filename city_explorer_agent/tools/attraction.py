@@ -1,5 +1,6 @@
 import requests
 from typing import List
+from strands import tool
 from city_explorer_agent.models import Attraction
 from city_explorer_agent.utils.cache import cached
 
@@ -82,15 +83,23 @@ def get_wikidata_attraction(city: str) -> List[Attraction]:
 
 
 
-@cached(lambda city: f"attraction:{city.lower()}", TTL_ATTRACTION)
+@tool(description="도시 관광지 정보를 가져옵니다")
 def attraction_tool(city: str) -> List[Attraction]:
     """도시 관광지 정보를 Wikidata SPARQL을 통해 가져옵니다."""
     
+    print(f"🔧 attraction_tool 실행 중... (도시: {city})")
+    
     # Wikidata 시도
     result = get_wikidata_attraction(city)
-    if result:
+    if result and len(result) > 0:
+        print(f"✅ 관광지 {len(result)}개 발견:")
+        for i, attr in enumerate(result[:3], 1):
+            print(f"   {i}. {attr.name}")
+        if len(result) > 3:
+            print(f"   ... 외 {len(result)-3}개")
         return result
     
+    print("⚠️ 관광지 정보를 찾을 수 없습니다")
     return [Attraction(
         name="N/A",
         desc="N/A",
